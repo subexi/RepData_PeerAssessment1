@@ -7,19 +7,201 @@ output:
 
 
 ## Loading and preprocessing the data
+```{r setoptions, echo=FALSE}
+```
+Load libraries
+```{r loadlibraries, echo=TRUE, results='hide'}
+library(dplyr)
+library(lattice)
+```
+     
 
+Read the data from csv-file and store in variable 'act'
+```{r readdata, echo=TRUE}
+act <- read.csv("activity.csv")
+```
+  
+     
+## What is mean total number of steps taken per day?  
+group by days
+```{r groupdata, echo=TRUE}
+dys <- group_by(act, date)
+```
 
+sum up the steps per day
+```{r}
+sum_steps <- summarise(dys, steps = sum(steps))
+```
 
-## What is mean total number of steps taken per day?
+mean and median of the total number of steps per day
+```{r, echo=TRUE}
+mean_median_steps <- summarise(dys, mean_steps = mean(steps, na.rm=T), median_steps = median(steps, na.rm=T))
+```
+```{r, echo=FALSE}
+knitr::kable(mean_median_steps)
+```
 
-
+histogram of the total number of steps per day
+```{r, echo=TRUE}
+hist(sum_steps$steps, col='green', main = "Total number of steps per day", xlab = "Number of steps")
+rug(sum_steps$steps)
+```
 
 ## What is the average daily activity pattern?
+group by interval and calculate mean
+```{r, echo=TRUE}
+intvls <- group_by(act, interval)
+ave_steps <- summarise(intvls, average = mean(steps, na.rm = T))
+```
 
+plot time series
+```{r, echo=TRUE}
+plot(ave_steps$interval, ave_steps$average, type = "l", col="red", xlab = " interval", ylab = "average number of taken steps")
+```
 
+The maximum average number of steps (206.169) is in interval 835
+```{r, echo=TRUE}
+mx <- max(ave_steps$average)
+mx_f <- filter(ave_steps, average == mx)
+result_interval <- mx_f$interval
+```
+```{r, echo=FALSE}
+knitr::kable(result_interval)
+```
 
 ## Imputing missing values
+get the total number of NAs (2304)
+```{r, echo=TRUE}
+my_na <- is.na(act)
+sum_my_na <- sum(my_na)
+```
 
+get NAs of act
+```{r, echo=TRUE}
+nas <- filter(act, is.na(steps))
+```
+
+get mean-values for NAs
+```{r, echo=TRUE}
+mean_nas <- merge(nas, ave_steps, by='interval', all.x = T)
+```
+
+rename and order cols
+```{r, echo=TRUE}
+missing_steps <- select(mean_nas, steps = average, date, interval)
+```
+
+get the no NAs in act
+```{r, echo=TRUE}
+no_nas <- filter(act, !is.na(steps))
+```
+
+combine both tables to get a dataset with the missing data filled in
+```{r, echo=TRUE}
+act_full <- rbind(no_nas, missing_steps)
+```
+
+Order the rows
+```{r, echo=TRUE}
+act_full <- arrange(act_full, date, interval)
+```
+
+sum up the steps per day
+```{r, echo=TRUE}
+dys_c <- group_by(act_full, date)
+sum_steps_c <- summarise(dys_c, steps = sum(steps))
+```
+
+histogram of the total number of steps per day for completed values for steps
+```{r, echo=TRUE}
+hist(sum_steps_c$steps, col='green', main = "Total number of steps per day (completed)", xlab = "Number of steps")
+rug(sum_steps_c$steps)
+```
+
+mean and median of the total number of steps per day with completed values for steps
+```{r, echo=TRUE}
+mean_median_steps_c <- summarise(dys_c, mean_steps = mean(steps, na.rm=T), median_steps = median(steps, na.rm=T))
+```
+
+Summary of original dataset
+```{r, echo=TRUE}
+summary(mean_median_steps)
+```
+
+Summary of completed dataset
+```{r, echo=TRUE}
+summary(mean_median_steps_c)
+```
+
+yes, the values differ from the estimates from the first part of the assignment.
+The impact of imputing missing data on the the estimates of the total daily number of steps is that mean and the median have the same value. The median of the new data set with completed values has increased compared to the first dataset.   
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+get days of weeks
+```{r, echo=TRUE}
+act_full <- mutate(act_full, day=weekdays(as.Date(act_full$date, '%Y-%m-%d')))
+```
+
+indicate weekend or weekday with factor variable
+```{r, echo=TRUE}
+act_full$days_full <- factor(act_full$day, labels = c("weekday", "weekday","weekday","weekday","weekday","weekend", "weekend"))
+```
+
+clean table
+```{r, echo=TRUE}
+steps_days <- select(act_full, steps, date, interval, days = days_full)
+```
+
+group for date
+```{r, echo=TRUE}
+date_g <- group_by(steps_days, date)
+```
+
+mean for steps
+```{r, echo=TRUE}
+mean_steps <- summarise(date_g, mean_steps = mean(steps))
+```
+
+weekdays
+```{r, echo=TRUE}
+steps_weekdays <- filter(steps_days, days == 'weekday')
+```
+
+group by interval
+```{r, echo=TRUE}
+intvls_wd <- group_by(steps_weekdays, interval)
+ave_steps_wd <- summarise(intvls_wd, average = mean(steps))
+```
+
+add column days
+```{r, echo=TRUE}
+ave_steps_wd_d <- mutate(ave_steps_wd, days = "weekday")
+```
+
+weekends
+```{r, echo=TRUE}
+steps_weekends <- filter(steps_days, days == 'weekend')
+```
+
+group by interval
+```{r, echo=TRUE}
+intvls_we <- group_by(steps_weekends, interval)
+ave_steps_we <- summarise(intvls_we, average = mean(steps))
+```
+
+add column days
+```{r, echo=TRUE}
+ave_steps_we_d <- mutate(ave_steps_we, days = "weekend")
+```
+
+combine weekdays and weekends
+```{r, echo=TRUE}
+ave_steps_all <- rbind(ave_steps_wd_d, ave_steps_we_d)
+```
+
+plot two panels for weekend and weekdays
+```{r, echo=TRUE}
+xyplot(average ~ interval | days, data=ave_steps_all, type="l", layout=c(1,2))
+```
